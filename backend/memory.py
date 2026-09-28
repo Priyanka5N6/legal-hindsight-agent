@@ -30,20 +30,31 @@ def retain_doc(doc_name: str, text: str):
 def find_relevant(query: str, limit: int = 6) -> list[str]:
        res = client.recall(bank_id=BANK_ID, query=query)
        return [r.text for r in res.results][:limit]
-
-
 def check_draft(draft: str) -> str:
+
     """REFLECT: does this new draft contradict anything said earlier in the case?"""
+
     question = (
         "You are a legal case-consistency assistant. A lawyer wrote the new draft paragraph below.\n"
         "Compare it against everything remembered about this case. If it contradicts any earlier "
-        "filing, testimony or stated position, say so clearly, quote or name the exact source "
-        "document, and give a confidence level (0-100%). If there is no contradiction, say that.\n\n"
+        "filing, testimony, or stated position, say so clearly and identify the exact source "
+        "document or case record supporting the contradiction. If there is no contradiction, "
+        "clearly explain why the draft is consistent with the retrieved case records.\n\n"
+
+        "IMPORTANT OUTPUT RULES:\n"
+        "- Do not use numerical confidence percentages such as 100% or 95%.\n"
+        "- Instead, use one of: 'Assessment Confidence: High', "
+        "'Assessment Confidence: Medium', or 'Assessment Confidence: Low'.\n"
+        "- Do not describe claims as 'demonstrably false'.\n"
+        "- When a contradiction is found, say that the draft "
+        "'conflicts with the retrieved case records'.\n"
+        "- Base the assessment only on the retrieved case memory.\n"
+        "- Clearly distinguish documented facts from legal arguments or interpretations.\n\n"
+
         f"NEW DRAFT:\n{draft}"
     )
+
     return client.reflect(bank_id=BANK_ID, query=question).text
-
-
 def find_precedent(argument: str) -> str:
     """REFLECT: surface similar past cases that help or hurt the current argument."""
     question = (
