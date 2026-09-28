@@ -5,7 +5,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
 const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000";
+  process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8001";
 
 const CONTRADICTING_SAMPLE =
   "Halden's delay caused Riverside only a minor inconvenience. Production continued with minimal interruption, and Riverside's actual losses from the delay were negligible.";
