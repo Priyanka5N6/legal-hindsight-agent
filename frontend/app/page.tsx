@@ -19,6 +19,16 @@ type CompareResponse = {
   memories_used: string[];
 };
 
+type AskResponse = {
+  answer: string;
+  memories_used: string[];
+};
+
+type PrecedentResponse = {
+  analysis: string;
+  memories_used: string[];
+};
+
 type ErrorResponse = {
   detail?: string;
 };
@@ -99,11 +109,57 @@ function MarkdownContent({ content }: { content: string }) {
   );
 }
 
+function MemoriesPanel({ memories }: { memories: string[] }) {
+  return (
+    <section className="mt-6 rounded-2xl border border-slate-800 bg-slate-900 p-6">
+      <div className="mb-5">
+        <h3 className="text-lg font-semibold">What the agent remembered</h3>
+        <p className="mt-1 text-sm text-slate-400">
+          These memory snippets were retrieved while analyzing the request.
+        </p>
+      </div>
+
+      {memories.length > 0 ? (
+        <ul className="space-y-3">
+          {memories.map((memory, index) => (
+            <li
+              key={`${index}-${memory}`}
+              className="rounded-xl border border-slate-800 bg-slate-950 px-4 py-3 text-sm leading-6 text-slate-300"
+            >
+              <span className="mr-3 font-semibold text-emerald-400">
+                {index + 1}.
+              </span>
+              {memory}
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="text-sm text-slate-500">
+          No memory snippets were returned for this analysis.
+        </p>
+      )}
+    </section>
+  );
+}
+
 export default function Home() {
   const [caseText, setCaseText] = useState("");
   const [result, setResult] = useState<CompareResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+
+  // Ask the case state
+  const [question, setQuestion] = useState("");
+  const [askResult, setAskResult] = useState<AskResponse | null>(null);
+  const [askLoading, setAskLoading] = useState(false);
+  const [askError, setAskError] = useState("");
+
+  // Precedent check state
+  const [argument, setArgument] = useState("");
+  const [precedentResult, setPrecedentResult] =
+    useState<PrecedentResponse | null>(null);
+  const [precedentLoading, setPrecedentLoading] = useState(false);
+  const [precedentError, setPrecedentError] = useState("");
 
   async function analyzeCase() {
     const draft = caseText.trim();
@@ -151,7 +207,7 @@ export default function Home() {
         setError(err.message);
       } else {
         setError(
-          "Something went wrong while connecting to the legal memory backend."
+          "Something went wrong while connecting to the legal memory backend.",
         );
       }
     } finally {
@@ -163,6 +219,114 @@ export default function Home() {
     setCaseText(sample);
     setResult(null);
     setError("");
+  }
+
+  async function askCase() {
+    const trimmedQuestion = question.trim();
+
+    if (!trimmedQuestion) {
+      setAskError("Please enter a question about the case.");
+      setAskResult(null);
+      return;
+    }
+
+    setAskLoading(true);
+    setAskError("");
+    setAskResult(null);
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/ask`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ question: trimmedQuestion }),
+      });
+
+      if (!response.ok) {
+        let message = "The case question could not be answered.";
+
+        try {
+          const errorData = (await response.json()) as ErrorResponse;
+
+          if (errorData.detail) {
+            message = errorData.detail;
+          }
+        } catch {
+          // Keep the friendly fallback message.
+        }
+
+        throw new Error(message);
+      }
+
+      const data = (await response.json()) as AskResponse;
+
+      setAskResult(data);
+    } catch (err) {
+      if (err instanceof Error) {
+        setAskError(err.message);
+      } else {
+        setAskError(
+          "Something went wrong while connecting to the legal memory backend.",
+        );
+      }
+    } finally {
+      setAskLoading(false);
+    }
+  }
+
+  async function checkPrecedent() {
+    const trimmedArgument = argument.trim();
+
+    if (!trimmedArgument) {
+      setPrecedentError("Please enter an argument to check against precedent.");
+      setPrecedentResult(null);
+      return;
+    }
+
+    setPrecedentLoading(true);
+    setPrecedentError("");
+    setPrecedentResult(null);
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/precedent`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ argument: trimmedArgument }),
+      });
+
+      if (!response.ok) {
+        let message = "The precedent check could not be completed.";
+
+        try {
+          const errorData = (await response.json()) as ErrorResponse;
+
+          if (errorData.detail) {
+            message = errorData.detail;
+          }
+        } catch {
+          // Keep the friendly fallback message.
+        }
+
+        throw new Error(message);
+      }
+
+      const data = (await response.json()) as PrecedentResponse;
+
+      setPrecedentResult(data);
+    } catch (err) {
+      if (err instanceof Error) {
+        setPrecedentError(err.message);
+      } else {
+        setPrecedentError(
+          "Something went wrong while connecting to the legal memory backend.",
+        );
+      }
+    } finally {
+      setPrecedentLoading(false);
+    }
   }
 
   return (
@@ -198,6 +362,7 @@ export default function Home() {
           </p>
         </div>
 
+        {/* EXISTING MEMORY COMPARISON */}
         <div className="rounded-2xl border border-slate-800 bg-slate-900 p-6 shadow-xl">
           <div className="mb-5">
             <h3 className="text-lg font-semibold">Current Draft</h3>
@@ -391,6 +556,195 @@ export default function Home() {
             </div>
           </div>
         )}
+
+        {/* ASK THE CASE */}
+        <section className="mt-10">
+          <div className="mb-5">
+            <h2 className="text-2xl font-semibold">Ask the case</h2>
+            <p className="mt-1 text-sm text-slate-400">
+              Ask a question and let Hindsight answer using persistent case
+              memory.
+            </p>
+          </div>
+
+          <div className="rounded-2xl border border-slate-800 bg-slate-900 p-6 shadow-xl">
+            <div className="mb-5">
+              <h3 className="text-lg font-semibold">Case question</h3>
+              <p className="mt-1 text-sm text-slate-400">
+                Example: &quot;What is our position on damages?&quot;
+              </p>
+            </div>
+
+            <input
+              type="text"
+              value={question}
+              onChange={(event) => {
+                setQuestion(event.target.value);
+
+                if (askError) {
+                  setAskError("");
+                }
+              }}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" && !askLoading) {
+                  askCase();
+                }
+              }}
+              disabled={askLoading}
+              placeholder="What is our position on damages?"
+              className="w-full rounded-xl border border-slate-700 bg-slate-950 p-4 text-sm leading-7 text-white outline-none transition placeholder:text-slate-600 focus:border-blue-500 disabled:cursor-not-allowed disabled:opacity-60"
+            />
+
+            <div className="mt-5 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <span className="text-xs text-slate-500">
+                Ask anything about the case and its history.
+              </span>
+
+              <button
+                type="button"
+                onClick={askCase}
+                disabled={askLoading}
+                className="rounded-xl bg-blue-600 px-6 py-3 text-sm font-semibold transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:bg-blue-900 disabled:text-blue-300"
+              >
+                {askLoading ? (
+                  <span className="flex items-center justify-center gap-2">
+                    <span className="h-4 w-4 animate-spin rounded-full border-2 border-blue-200 border-t-transparent" />
+                    Asking Hindsight...
+                  </span>
+                ) : (
+                  "Ask"
+                )}
+              </button>
+            </div>
+
+            {askLoading && (
+              <div className="mt-5 rounded-xl border border-blue-500/20 bg-blue-500/5 px-4 py-3 text-sm text-blue-300">
+                Hindsight is searching the case memory and preparing an
+                answer. This can take 10–20 seconds.
+              </div>
+            )}
+
+            {askError && (
+              <div className="mt-5 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-4 text-sm text-red-300">
+                <p className="font-semibold text-red-200">
+                  Unable to answer the question
+                </p>
+                <p className="mt-1">{askError}</p>
+              </div>
+            )}
+
+            {askResult && !askLoading && (
+              <>
+                <div className="mt-6 rounded-2xl border border-slate-800 bg-slate-950 p-6">
+                  <div className="mb-5 border-b border-slate-800 pb-4">
+                    <h3 className="text-lg font-semibold text-emerald-300">
+                      Hindsight&apos;s answer
+                    </h3>
+                    <p className="mt-1 text-xs text-slate-500">
+                      Answer grounded in persistent case memory
+                    </p>
+                  </div>
+
+                  <MarkdownContent content={askResult.answer} />
+                </div>
+
+                <MemoriesPanel memories={askResult.memories_used} />
+              </>
+            )}
+          </div>
+        </section>
+
+        {/* PRECEDENT CHECK */}
+        <section className="mt-10">
+          <div className="mb-5">
+            <h2 className="text-2xl font-semibold">Precedent check</h2>
+            <p className="mt-1 text-sm text-slate-400">
+              Check whether past case memories support or hurt a legal
+              argument.
+            </p>
+          </div>
+
+          <div className="rounded-2xl border border-slate-800 bg-slate-900 p-6 shadow-xl">
+            <div className="mb-5">
+              <h3 className="text-lg font-semibold">Argument</h3>
+              <p className="mt-1 text-sm text-slate-400">
+                Example: &quot;Halden&apos;s late delivery is a material breach
+                because time was of the essence.&quot;
+              </p>
+            </div>
+
+            <textarea
+              value={argument}
+              onChange={(event) => {
+                setArgument(event.target.value);
+
+                if (precedentError) {
+                  setPrecedentError("");
+                }
+              }}
+              disabled={precedentLoading}
+              placeholder="Halden's late delivery is a material breach because time was of the essence."
+              className="min-h-40 w-full resize-none rounded-xl border border-slate-700 bg-slate-950 p-4 text-sm leading-7 text-white outline-none transition placeholder:text-slate-600 focus:border-blue-500 disabled:cursor-not-allowed disabled:opacity-60"
+            />
+
+            <div className="mt-5 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <span className="text-xs text-slate-500">
+                Check the argument against relevant past case memory.
+              </span>
+
+              <button
+                type="button"
+                onClick={checkPrecedent}
+                disabled={precedentLoading}
+                className="rounded-xl bg-blue-600 px-6 py-3 text-sm font-semibold transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:bg-blue-900 disabled:text-blue-300"
+              >
+                {precedentLoading ? (
+                  <span className="flex items-center justify-center gap-2">
+                    <span className="h-4 w-4 animate-spin rounded-full border-2 border-blue-200 border-t-transparent" />
+                    Checking precedent...
+                  </span>
+                ) : (
+                  "Check precedent"
+                )}
+              </button>
+            </div>
+
+            {precedentLoading && (
+              <div className="mt-5 rounded-xl border border-blue-500/20 bg-blue-500/5 px-4 py-3 text-sm text-blue-300">
+                Hindsight is searching past cases and checking the argument.
+                This can take 10–20 seconds.
+              </div>
+            )}
+
+            {precedentError && (
+              <div className="mt-5 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-4 text-sm text-red-300">
+                <p className="font-semibold text-red-200">
+                  Unable to check precedent
+                </p>
+                <p className="mt-1">{precedentError}</p>
+              </div>
+            )}
+
+            {precedentResult && !precedentLoading && (
+              <>
+                <div className="mt-6 rounded-2xl border border-slate-800 bg-slate-950 p-6">
+                  <div className="mb-5 border-b border-slate-800 pb-4">
+                    <h3 className="text-lg font-semibold text-emerald-300">
+                      Precedent analysis
+                    </h3>
+                    <p className="mt-1 text-xs text-slate-500">
+                      Past case memory relevant to this argument
+                    </p>
+                  </div>
+
+                  <MarkdownContent content={precedentResult.analysis} />
+                </div>
+
+                <MemoriesPanel memories={precedentResult.memories_used} />
+              </>
+            )}
+          </div>
+        </section>
       </section>
     </main>
   );
