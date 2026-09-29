@@ -33,6 +33,30 @@ type ErrorResponse = {
   detail?: string;
 };
 
+type TimelineEntry = {
+  date: string;
+  title: string;
+  description: string;
+};
+
+const CASE_TIMELINE: TimelineEntry[] = [
+  {
+    date: "Jun 3",
+    title: "Complaint filed",
+    description: "12-day shutdown, $240,000 in losses alleged",
+  },
+  {
+    date: "Jun 20",
+    title: "Deposition — Priya Nair",
+    description: "Confirms shutdown dates and written objection",
+  },
+  {
+    date: "Aug 2",
+    title: "Motion for partial summary judgment",
+    description: "Argues material breach under Section 4.2",
+  },
+];
+
 function MarkdownContent({ content }: { content: string }) {
   return (
     <div className="space-y-3 text-sm leading-7 text-slate-300">
@@ -138,6 +162,72 @@ function MemoriesPanel({ memories }: { memories: string[] }) {
           No memory snippets were returned for this analysis.
         </p>
       )}
+    </section>
+  );
+}
+
+function CaseMemoryTimeline({
+  showContradiction,
+}: {
+  showContradiction: boolean;
+}) {
+  return (
+    <section className="mt-8 rounded-2xl border border-slate-800 bg-slate-900 p-6 shadow-xl">
+      <div className="mb-6">
+        <h2 className="text-xl font-semibold">Case memory timeline</h2>
+        <p className="mt-1 text-sm text-slate-400">
+          Key events stored in the case record.
+        </p>
+      </div>
+
+      <div className="relative ml-2">
+        {/* Timeline line */}
+        <div className="absolute bottom-2 left-[7px] top-2 w-px bg-slate-700" />
+
+        <div className="space-y-7">
+          {CASE_TIMELINE.map((entry) => (
+            <div key={`${entry.date}-${entry.title}`} className="relative pl-8">
+              {/* Timeline dot */}
+              <div className="absolute left-0 top-1.5 h-4 w-4 rounded-full border-4 border-slate-900 bg-blue-500 ring-1 ring-blue-500/30" />
+
+              <div>
+                <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
+                  {entry.date}
+                </p>
+
+                <h3 className="mt-1 text-sm font-semibold text-white">
+                  {entry.title}
+                </h3>
+
+                <p className="mt-1 text-sm leading-6 text-slate-400">
+                  {entry.description}
+                </p>
+              </div>
+            </div>
+          ))}
+
+          {showContradiction && (
+            <div className="relative pl-8">
+              {/* Contradiction timeline dot */}
+              <div className="absolute left-0 top-1.5 h-4 w-4 rounded-full border-4 border-slate-900 bg-red-500 ring-1 ring-red-500/30" />
+
+              <div>
+                <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
+                  Today
+                </p>
+
+                <h3 className="mt-1 text-sm font-semibold text-white">
+                  New draft submitted
+                </h3>
+
+                <p className="mt-1 text-sm leading-6 text-red-400">
+                  Flagged: conflicts with earlier case record
+                </p>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
     </section>
   );
 }
@@ -279,7 +369,9 @@ export default function Home() {
     const trimmedArgument = argument.trim();
 
     if (!trimmedArgument) {
-      setPrecedentError("Please enter an argument to check against precedent.");
+      setPrecedentError(
+        "Please enter an argument to check against precedent.",
+      );
       setPrecedentResult(null);
       return;
     }
@@ -328,6 +420,12 @@ export default function Home() {
       setPrecedentLoading(false);
     }
   }
+
+  const hasContradiction =
+    result !== null &&
+    /\b(contradict|contradiction|contradictory|inconsistent|inconsistency)\b/i.test(
+      result.with_memory,
+    );
 
   return (
     <main className="min-h-screen bg-slate-950 text-white">
@@ -450,6 +548,9 @@ export default function Home() {
             </div>
           )}
         </div>
+
+        {/* NEW VISUAL CASE MEMORY TIMELINE */}
+        <CaseMemoryTimeline showContradiction={hasContradiction} />
 
         {result && !loading && (
           <div className="mt-8">
